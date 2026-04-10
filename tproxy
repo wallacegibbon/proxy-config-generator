@@ -1,4 +1,4 @@
-##  Usage: Copy this file to shell init (like ~/.zshrc, ~/.bashrc) or sourct this file.
+##  Usage: Copy this file to shell init (like ~/.zshrc, ~/.bashrc) or source this file.
 proxyon() {
 	export all_proxy=socks5://127.0.0.1:7891
 	export http_proxy=http://127.0.0.1:7890

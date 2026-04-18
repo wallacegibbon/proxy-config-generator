@@ -97,13 +97,12 @@ func TestBuildDefaultProxyGroups(t *testing.T) {
 	proxyNames := []string{"proxy-a", "proxy-b", "proxy-c"}
 	groups := BuildDefaultProxyGroups(proxyNames)
 
-	if len(groups) != 4 {
-		t.Fatalf("len(groups) = %d, want 4", len(groups))
+	if len(groups) != 1 {
+		t.Fatalf("len(groups) = %d, want 1", len(groups))
 	}
 
-	// Check "Proxy" group (url-test auto-select)
-	if groups[0].Name != "Proxy" {
-		t.Errorf("groups[0].Name = %s, want Proxy", groups[0].Name)
+	if groups[0].Name != "PROXY" {
+		t.Errorf("groups[0].Name = %s, want PROXY", groups[0].Name)
 	}
 	if groups[0].Type != "url-test" {
 		t.Errorf("groups[0].Type = %s, want url-test", groups[0].Type)
@@ -117,36 +116,6 @@ func TestBuildDefaultProxyGroups(t *testing.T) {
 	if len(groups[0].Proxies) != 3 {
 		t.Errorf("len(groups[0].Proxies) = %d, want 3", len(groups[0].Proxies))
 	}
-
-	// Check "US-Only" group
-	if groups[1].Name != "US-Only" {
-		t.Errorf("groups[1].Name = %s, want US-Only", groups[1].Name)
-	}
-	if groups[1].Type != "select" {
-		t.Errorf("groups[1].Type = %s, want select", groups[1].Type)
-	}
-	if groups[1].Proxies[0] != "Proxy" {
-		t.Errorf("groups[1].Proxies[0] = %s, want Proxy", groups[1].Proxies[0])
-	}
-
-	// Check "CN-Only" group
-	if groups[2].Name != "CN-Only" {
-		t.Errorf("groups[2].Name = %s, want CN-Only", groups[2].Name)
-	}
-	if groups[2].Type != "select" {
-		t.Errorf("groups[2].Type = %s, want select", groups[2].Type)
-	}
-	if groups[2].Proxies[0] != "Proxy" {
-		t.Errorf("groups[2].Proxies[0] = %s, want Proxy", groups[2].Proxies[0])
-	}
-
-	// Check "Reject" group
-	if groups[3].Name != "Reject" {
-		t.Errorf("groups[3].Name = %s, want Reject", groups[3].Name)
-	}
-	if !reflect.DeepEqual(groups[3].Proxies, []string{"REJECT", "DIRECT"}) {
-		t.Errorf("groups[3].Proxies = %v", groups[3].Proxies)
-	}
 }
 
 func TestBuildDefaultRules(t *testing.T) {
@@ -158,7 +127,7 @@ func TestBuildDefaultRules(t *testing.T) {
 	if rules[0] != "DOMAIN-KEYWORD,falun,REJECT" {
 		t.Errorf("first rule = %s", rules[0])
 	}
-	if rules[len(rules)-1] != "MATCH,Proxy" {
+	if rules[len(rules)-1] != "MATCH,PROXY" {
 		t.Errorf("last rule = %s", rules[len(rules)-1])
 	}
 }
@@ -177,8 +146,8 @@ func TestGenerateConfig(t *testing.T) {
 	if len(cfg.Proxies) != 2 {
 		t.Errorf("len(Proxies) = %d, want 2", len(cfg.Proxies))
 	}
-	if len(cfg.ProxyGroups) != 4 {
-		t.Errorf("len(ProxyGroups) = %d, want 4", len(cfg.ProxyGroups))
+	if len(cfg.ProxyGroups) != 1 {
+		t.Errorf("len(ProxyGroups) = %d, want 1", len(cfg.ProxyGroups))
 	}
 	if len(cfg.Rules) == 0 {
 		t.Error("Rules should not be empty")

@@ -4,7 +4,10 @@ This file contains essential information for working effectively in this codebas
 
 ## Project Overview
 
-A Go CLI that parses Clash/mihomo subscription configurations. It reads a subscription URL from a file, fetches content from that URL (base64 encoded or raw), decodes it, parses the configuration (YAML or proxy URI list), and outputs a merged configuration with default settings.
+A Go CLI that generates mihomo (Clash Meta) configuration files from subscription URLs.
+Input is one or more text files, each containing a list of proxy URIs (one per line).
+All other configuration (ports, DNS, proxy-groups, rules, rule-providers) is hardcoded
+based on the pattern in `~/mihomo-config/config.yaml`.
 
 ## Essential Commands
 
@@ -13,71 +16,55 @@ go build -o proxy-config-updater .          # Build executable
 go test ./...                                # Run all tests
 go test -v ./internal/clash                  # Verbose test output
 go vet ./...                                 # Static analysis
-go mod tidy                                  # Clean up dependencies
 ```
 
 ### Run
 
 ```bash
-./proxy-config-updater <url-file> [options]
+# Single subscription file (URIs are in the file directly)
+./proxy-config-updater ~/a.txt
 
-# Options:
-#   -output <path>      Output file path (default: stdout)
-#   -pretty             Pretty print output (default: true)
-#   -pretty=false       Raw output
+# Multiple subscription files (all proxies merged into one config)
+./proxy-config-updater ~/a.txt ~/b.txt
 
-# Examples:
-./proxy-config-updater url.txt
-./proxy-config-updater url.txt -output config.yaml
-./proxy-config-updater -output config.yaml url.txt   # flags can go anywhere
+# Output to file
+./proxy-config-updater ~/a.txt -output config.yaml
+
+# File can also contain subscription URLs (http/https)
+# If a line is not a proxy URI, it's fetched as a subscription URL
+./proxy-config-updater url-list.txt
 ```
 
 ## Project Structure
 
 ```
-├── main.go                     # CLI entry point: flag parsing, orchestration, output
-├── internal/clash/             # Business logic (package clash)
-│   ├── models.go               #   Types: ClashConfig, Proxy, ProxyGroup, RuleProvider
-│   ├── fetch.go                #   HTTP: FetchContent, FetchClashConfig
-│   ├── decode.go               #   Base64: DecodeBase64
-│   ├── uri.go                  #   URI parsing: IsURIList, all protocol parsers, helpers
-│   ├── config.go               #   ParseContent, LoadDefaultConfig, MergeConfigs, MergeClash
-│   └── config_test.go          #   Tests
+├── main.go                     # CLI entry point: reads input files, collects proxies, generates config
+├── internal/clash/
+│   ├── models.go               # Types: ClashConfig, Proxy, ProxyGroup, RuleProvider, DNSConfig
+│   ├── generate.go             # Hardcoded defaults, GenerateConfig(), WriteConfig()
+│   ├── config.go               # ParseContent(), IsURIList(), ParseURIList()
+│   ├── uri.go                  # URI parsing: all protocol parsers (vless, vmess, trojan, ss, tuic, hysteria2)
+│   ├── helpers.go              # Shared helpers: decodeFragment, setExtra, stringFromMap, intFromMap
+│   ├── fetch.go                # HTTP fetch: FetchContent()
+│   ├── decode.go               # Base64: DecodeBase64(), base64DecodeCompat()
+│   └── config_test.go          # Tests
 ├── go.mod / go.sum
 └── README.md
 ```
 
-## File Guide
+## Design
 
-| File | What to edit for... |
-|------|-------------------|
-| `main.go` | CLI flags, output flow, status messages |
-| `internal/clash/models.go` | Struct fields |
-| `internal/clash/fetch.go` | HTTP behavior, User-Agents, timeouts |
-| `internal/clash/decode.go` | Base64/content decoding |
-| `internal/clash/uri.go` | New proxy protocol parsers, URI parsing |
-| `internal/clash/config.go` | Defaults, merge logic, format detection |
-| `internal/clash/config_test.go` | Tests |
+1. **Input = proxy URI list**: Each input file has one proxy URI per line (`vless://`, `tuic://`, `hysteria2://`, etc.).
+   Lines that aren't proxy URIs are treated as subscription URLs and fetched.
 
-## Key Design Decisions
+2. **All config is hardcoded**: Ports, DNS, proxy-groups, rules, and rule-providers come from `LoadDefaultConfig()`, `BuildDefaultProxyGroups()`, and `BuildDefaultRules()` in `generate.go`.
 
-1. **Dual-fetch strategy**: Two HTTP requests per run — generic UA gets the full proxy list, Clash UA gets proxy-groups/rules. `MergeClash()` combines both responses.
+3. **Proxy-groups auto-populated**: `BuildDefaultProxyGroups()` takes the list of proxy names and creates all groups (选择节点, 自动选择, ChatGPT, etc.) with all proxies included.
 
-2. **Extra map pattern**: `ClashConfig.Extra` and `Proxy.Extra` use `yaml:",inline,omitempty"` to capture unknown YAML keys. Use the `setExtra()` helper in `uri.go` to populate protocol-specific fields.
-
-3. **URI scheme dispatch**: The `proxySchemes` slice in `uri.go` defines known schemes used by both `IsURIList()` and `parseProxyURI()`. Add new schemes there.
-
-4. **Reflection-based merge**: `MergeConfigs()` copies non-zero fields from subscription over defaults. Maps are replaced entirely, not deep-merged.
+4. **No merge logic**: The old reflection-based `MergeConfigs()` and dual-fetch strategy are removed. `GenerateConfig()` simply combines proxies with hardcoded defaults.
 
 ## Dependencies
 
 - Go 1.25.6
 - `gopkg.in/yaml.v3`
 - Standard library only
-
-## Gotchas
-
-1. **File-based URL input**: The tool accepts a filename (not a URL).
-2. **User-Agent sensitivity**: Do NOT use "Mozilla" in the UA (triggers reduced proxy set).
-3. **`-pretty` default is true**: Set `-pretty=false` for raw output.
-4. **Binary may exist**: Rebuild after code changes.

@@ -22,46 +22,9 @@ var proxySchemes = []string{
 	"hysteria://",
 }
 
-// IsURIList returns true if more than half of non-empty lines are proxy URIs.
-func IsURIList(content string) bool {
-	lines := strings.Split(content, "\n")
-	total, uriCount := 0, 0
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		total++
-		for _, scheme := range proxySchemes {
-			if strings.HasPrefix(line, scheme) {
-				uriCount++
-				break
-			}
-		}
-	}
-	return uriCount > 0 && uriCount >= total/2
-}
-
-// parseURIList parses a list of proxy URI lines into a ClashConfig.
-// Invalid lines are skipped with warnings to stderr.
-func parseURIList(content string) (*ClashConfig, error) {
-	cfg := &ClashConfig{}
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		proxy, err := parseProxyURI(line)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to parse URI: %v\n", err)
-			continue
-		}
-		if proxy != nil {
-			cfg.Proxies = append(cfg.Proxies, *proxy)
-		}
-	}
-	return cfg, nil
+// ParseSingleURI parses a single proxy URI line and returns a Proxy.
+func ParseSingleURI(line string) (*Proxy, error) {
+	return parseProxyURI(line)
 }
 
 // parseProxyURI dispatches to the appropriate URI parser based on scheme.
@@ -85,7 +48,6 @@ func parseProxyURI(line string) (*Proxy, error) {
 	}
 }
 
-// parseVlessURI parses a vless:// URI into a Proxy.
 func parseVlessURI(uri string) (*Proxy, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -137,7 +99,6 @@ func parseVlessURI(uri string) (*Proxy, error) {
 		proxy.SkipCertVerify = true
 	}
 
-	// Transport options
 	if network == "ws" {
 		wsOpts := map[string]any{}
 		if wsPath := query.Get("path"); wsPath != "" {
@@ -161,7 +122,6 @@ func parseVlessURI(uri string) (*Proxy, error) {
 	return proxy, nil
 }
 
-// parseVmessURI parses a vmess:// URI (base64-encoded JSON) into a Proxy.
 func parseVmessURI(uri string) (*Proxy, error) {
 	encoded := strings.TrimPrefix(uri, "vmess://")
 	decoded, err := base64DecodeCompat(encoded)
@@ -223,7 +183,6 @@ func parseVmessURI(uri string) (*Proxy, error) {
 	return proxy, nil
 }
 
-// parseTrojanURI parses a trojan:// URI into a Proxy.
 func parseTrojanURI(uri string) (*Proxy, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -256,9 +215,6 @@ func parseTrojanURI(uri string) (*Proxy, error) {
 	return proxy, nil
 }
 
-// parseSSURI parses a ss:// URI into a Proxy.
-// Supports both SIP002 (base64(method:password)@host:port) and
-// legacy (base64(method:password@host:port)) formats.
 func parseSSURI(uri string) (*Proxy, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -270,7 +226,6 @@ func parseSSURI(uri string) (*Proxy, error) {
 	var port int
 
 	if u.User != nil && u.User.Username() != "" {
-		// SIP002: ss://base64(method:password)@host:port#name
 		userInfo := u.User.Username()
 		if decoded, err := base64DecodeCompat(userInfo); err == nil {
 			parts := strings.SplitN(decoded, ":", 2)
@@ -286,7 +241,6 @@ func parseSSURI(uri string) (*Proxy, error) {
 		host = u.Hostname()
 		port, _ = strconv.Atoi(u.Port())
 	} else {
-		// Legacy: ss://base64(method:password@host:port)#name
 		decoded, err := base64DecodeCompat(u.Host)
 		if err != nil {
 			return nil, fmt.Errorf("decoding ss URI: %w", err)
@@ -320,7 +274,6 @@ func parseSSURI(uri string) (*Proxy, error) {
 	}, nil
 }
 
-// parseTuicURI parses a tuic:// URI into a Proxy.
 func parseTuicURI(uri string) (*Proxy, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -365,7 +318,6 @@ func parseTuicURI(uri string) (*Proxy, error) {
 	return proxy, nil
 }
 
-// parseHysteria2URI parses a hysteria2:// URI into a Proxy.
 func parseHysteria2URI(uri string) (*Proxy, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -402,48 +354,4 @@ func parseHysteria2URI(uri string) (*Proxy, error) {
 	}
 
 	return proxy, nil
-}
-
-// --- Helpers ---
-
-// decodeFragment URL-decodes the fragment (after #) of a URI, which may be percent-encoded.
-func decodeFragment(fragment string) string {
-	decoded, err := url.PathUnescape(fragment)
-	if err != nil {
-		return fragment
-	}
-	return decoded
-}
-
-// setExtra sets a key-value pair in a proxy's Extra map, creating it if nil.
-func setExtra(extra map[string]any, key string, value any) map[string]any {
-	if extra == nil {
-		extra = make(map[string]any)
-	}
-	extra[key] = value
-	return extra
-}
-
-// stringFromMap safely extracts a string value from a map[string]any.
-func stringFromMap(m map[string]any, key string) string {
-	if val, ok := m[key]; ok {
-		if s, ok := val.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-// intFromMap extracts an int value from a map[string]any (handles float64 and string).
-func intFromMap(m map[string]any, key string) int {
-	if val, ok := m[key]; ok {
-		switch v := val.(type) {
-		case float64:
-			return int(v)
-		case string:
-			n, _ := strconv.Atoi(v)
-			return n
-		}
-	}
-	return 0
 }

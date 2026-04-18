@@ -7,84 +7,89 @@ import (
 	"strings"
 
 	"github.com/wallacegibbon/proxy-config-updater/internal/clash"
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
 	var output string
-	pretty := true
-	urlFile := ""
+	files := args(os.Args[1:])
 
-	// Manual flag parsing to allow flags anywhere in the argument list.
-	args := os.Args[1:]
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if len(arg) > 0 && arg[0] == '-' {
-			switch arg {
-			case "-output":
-				if i+1 >= len(args) {
-					fatal("Error: -output requires a value")
-				}
-				output = args[i+1]
-				i++
-			case "-pretty":
-				pretty = true
-			case "-pretty=false":
-				pretty = false
-			default:
-				fatal(fmt.Sprintf("Unknown flag: %s", arg))
-			}
-		} else if urlFile == "" {
-			urlFile = arg
-		} else {
-			fatal(fmt.Sprintf("Error: unexpected argument: %s", arg))
-		}
-	}
+	// Simple flag parsing
+	positional := positionalArgs(files, &output)
 
-	if urlFile == "" {
-		fmt.Fprintln(os.Stderr, "Usage: proxy-config-updater <url-file> [options]")
+	if len(positional) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: proxy-config-updater [-output <path>] <url-file> [url-file2 ...]")
+		fmt.Fprintln(os.Stderr, "  Each URL file contains one URL per line (proxy subscription links)")
 		fmt.Fprintln(os.Stderr, "  -output string   Output file path (default: stdout)")
-		fmt.Fprintln(os.Stderr, "  -pretty          Pretty print output (default true)")
 		os.Exit(1)
 	}
 
-	// Read subscription URL from file
-	subscriptionURL := readURLFile(urlFile)
-	fmt.Fprintf(os.Stderr, "Reading URL from file: %s\n", urlFile)
+	// Collect all proxy URIs from all input files
+	var allLines []string
+	for _, f := range positional {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			fatal(fmt.Sprintf("Error reading %s: %v", f, err))
+		}
+		fmt.Fprintf(os.Stderr, "Reading subscription URLs from: %s\n", f)
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				allLines = append(allLines, line)
+			}
+		}
+	}
 
-	// Fetch full proxy list with generic User-Agent
-	fmt.Fprintf(os.Stderr, "Fetching subscription from: %s\n", subscriptionURL)
-	encodedContent, err := clash.FetchContent(subscriptionURL)
+	// Fetch each URL and collect all proxy URIs
+	var allProxies []clash.Proxy
+	for i, rawURL := range allLines {
+		// If it's already a proxy URI, parse directly
+		if clash.IsProxyURI(rawURL) {
+			proxy, err := clash.ParseSingleURI(rawURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to parse URI: %v\n", err)
+				continue
+			}
+			if proxy != nil {
+				allProxies = append(allProxies, *proxy)
+			}
+			continue
+		}
+
+		// It's a subscription URL — fetch it
+		fmt.Fprintf(os.Stderr, "Fetching [%d/%d]: %s\n", i+1, len(allLines), rawURL)
+		content, err := clash.FetchContent(rawURL)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: fetch failed: %v\n", err)
+			continue
+		}
+
+		// Try base64 decode
+		decoded, err := clash.DecodeBase64(content)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "  Not base64, using raw content")
+			decoded = content
+		}
+
+		// Parse the content
+		cfg, err := clash.ParseContent(decoded)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: parse failed: %v\n", err)
+			continue
+		}
+		allProxies = append(allProxies, cfg.Proxies...)
+	}
+
+	fmt.Fprintf(os.Stderr, "Total proxies parsed: %d\n", len(allProxies))
+
+	if len(allProxies) == 0 {
+		fatal("Error: no proxies found from any source")
+	}
+
+	// Generate the complete config
+	cfg, err := clash.GenerateConfig(allProxies)
 	if err != nil {
-		fatal(fmt.Sprintf("Error fetching content: %v", err))
+		fatal(fmt.Sprintf("Error generating config: %v", err))
 	}
-
-	// Fetch Clash YAML format for proxy-groups and rules
-	fmt.Fprintln(os.Stderr, "Fetching Clash format for proxy-groups and rules...")
-	clashCfg := clash.FetchClashConfig(subscriptionURL)
-
-	// Decode content (try base64, fall back to raw)
-	fmt.Fprintln(os.Stderr, "Decoding base64 content...")
-	decodedContent, err := clash.DecodeBase64(encodedContent)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Warning: Content is not base64 encoded, trying raw content...")
-		decodedContent = encodedContent
-	}
-
-	// Parse the configuration
-	fmt.Fprintln(os.Stderr, "Parsing configuration...")
-	cfg, err := clash.ParseContent(decodedContent)
-	if err != nil {
-		fatal(fmt.Sprintf("Error parsing config: %v", err))
-	}
-
-	// Merge proxy-groups and rules from the Clash YAML response
-	if clashCfg != nil {
-		clash.MergeClash(cfg, clashCfg)
-	}
-
-	fmt.Fprintf(os.Stderr, "Configuration loaded: %d proxies, %d groups, %d rules\n",
-		len(cfg.Proxies), len(cfg.ProxyGroups), len(cfg.Rules))
 
 	// Write output
 	var writer io.Writer = os.Stdout
@@ -98,38 +103,36 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Writing configuration to: %s\n", output)
 	}
 
-	if pretty {
-		defaultCfg, _ := clash.LoadDefaultConfig()
-		if defaultCfg == nil {
-			defaultCfg = &clash.ClashConfig{}
-		}
-		merged := clash.MergeConfigs(defaultCfg, cfg)
-		yamlData, err := yaml.Marshal(merged)
-		if err != nil {
-			fatal(fmt.Sprintf("Error marshaling YAML: %v", err))
-		}
-		writer.Write(yamlData)
-	} else {
-		writer.Write([]byte(decodedContent))
+	if err := clash.WriteConfig(cfg, writer); err != nil {
+		fatal(fmt.Sprintf("Error writing config: %v", err))
 	}
 
-	fmt.Fprintln(os.Stderr, "\nDone!")
+	fmt.Fprintln(os.Stderr, "Done!")
 }
 
-// readURLFile reads and trims a subscription URL from a file.
-func readURLFile(filename string) string {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		fatal(fmt.Sprintf("Error reading URL file: %v", err))
-	}
-	url := strings.TrimSpace(string(data))
-	if url == "" {
-		fatal("Error: URL file is empty")
-	}
-	return url
+func args(osArgs []string) []string {
+	return osArgs
 }
 
-// fatal prints a message to stderr and exits.
+func positionalArgs(allArgs []string, output *string) []string {
+	var positional []string
+	for i := 0; i < len(allArgs); i++ {
+		arg := allArgs[i]
+		if arg == "-output" {
+			if i+1 >= len(allArgs) {
+				fatal("Error: -output requires a value")
+			}
+			*output = allArgs[i+1]
+			i++
+		} else if len(arg) > 0 && arg[0] == '-' {
+			fatal(fmt.Sprintf("Unknown flag: %s", arg))
+		} else {
+			positional = append(positional, arg)
+		}
+	}
+	return positional
+}
+
 func fatal(msg string) {
 	fmt.Fprintln(os.Stderr, msg)
 	os.Exit(1)

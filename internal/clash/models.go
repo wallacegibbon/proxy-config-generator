@@ -1,7 +1,6 @@
 package clash
 
-// ClashConfig represents a top-level Clash/mihomo configuration.
-// The Extra field captures any unrecognized YAML keys via inline marshaling.
+// ClashConfig represents a top-level mihomo configuration.
 type ClashConfig struct {
 	Port               int                     `yaml:"port"`
 	SocksPort          int                     `yaml:"socks-port"`
@@ -12,11 +11,13 @@ type ClashConfig struct {
 	Mode               string                  `yaml:"mode"`
 	LogLevel           string                  `yaml:"log-level"`
 	ExternalController string                  `yaml:"external-controller"`
+	TCPConcurrent      bool                    `yaml:"tcp-concurrent"`
+	UnifiedDelay       bool                    `yaml:"unified-delay"`
 	Proxies            []Proxy                 `yaml:"proxies"`
 	ProxyGroups        []ProxyGroup            `yaml:"proxy-groups"`
 	Rules              []string                `yaml:"rules"`
-	RuleProviders      map[string]RuleProvider `yaml:"rule-providers,omitempty"`
-	Extra              map[string]any          `yaml:",inline,omitempty"`
+	RuleProviders      map[string]RuleProvider `yaml:"rule-providers"`
+	DNS                DNSConfig               `yaml:"dns"`
 }
 
 // Proxy represents an individual proxy server configuration.
@@ -54,4 +55,16 @@ type RuleProvider struct {
 	URL      string `yaml:"url"`
 	Path     string `yaml:"path"`
 	Interval int    `yaml:"interval"`
+}
+
+// DNSConfig represents the DNS configuration section.
+type DNSConfig struct {
+	DefaultNameservers    []string `yaml:"default-nameserver"`
+	DirectNameservers     []string `yaml:"direct-nameserver"`
+	Enable                bool     `yaml:"enable"`
+	EnhancedMode          string   `yaml:"enhanced-mode"`
+	FakeIPRange           string   `yaml:"fake-ip-range"`
+	IPv6                  bool     `yaml:"ipv6"`
+	ProxyServerNameserver []string `yaml:"proxy-server-nameserver"`
+	UseHosts              bool     `yaml:"use-hosts"`
 }

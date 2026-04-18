@@ -1,77 +1,77 @@
 # Proxy Config Updater
 
-A command line tool in Go that parses Clash subscription URLs (which contain base64 encoded content) and generates Clash configurations.
+A command line tool in Go that generates mihomo (Clash Meta) configuration files from subscription proxy lists.
 
-## Features
+## How It Works
 
-- Read subscription URL from a file
-- Fetch and decode base64 encoded Clash subscription content
-- Parse and validate Clash YAML configurations
-- Pretty print or raw output
-- Output to file or stdout
-- Displays summary of parsed configuration (proxies, groups, rules count)
-- Merges subscription configuration with default values (ports, mode, log-level, rule providers)
+1. Reads one or more input files, each containing a list of proxy URIs (one per line)
+2. Parses all supported proxy protocols (vless, vmess, trojan, ss, tuic, hysteria2)
+3. Generates a complete mihomo config with hardcoded defaults (ports, DNS, proxy-groups, rules, rule-providers)
+4. Outputs valid YAML ready for mihomo
 
 ## Installation
 
 ```bash
-go install github.com/wallacegibbon/proxy-config-updater@latest
+go build -o proxy-config-updater .
 ```
 
 ## Usage
 
 ```bash
-proxy-config-updater <url-file> [options]
+proxy-config-updater [-output <path>] <url-file> [url-file2 ...]
 ```
 
-### Options
+### Input Files
 
-- `-output <path>` - Output file path (default: stdout)
-- `-pretty` - Pretty print output (default: true)
+Each input file contains one entry per line. Lines can be:
+- **Proxy URIs**: `vless://...`, `tuic://...`, `hysteria2://...`, `vmess://...`, `trojan://...`, `ss://...`
+- **Subscription URLs**: `https://...` — these are fetched and decoded (base64 or raw)
 
 ### Examples
 
-Create a file containing the subscription URL:
 ```bash
-echo "https://example.com/subscription" > url.txt
+# Generate config from a single proxy list file
+proxy-config-updater ~/a.txt
+
+# Merge multiple subscription files into one config
+proxy-config-updater ~/a.txt ~/b.txt
+
+# Save to a file
+proxy-config-updater ~/a.txt -output config.yaml
 ```
 
-Parse subscription and output to stdout:
-```bash
-proxy-config-updater url.txt
+### Sample Input File
+
+```
+vless://uuid@server:443?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&sni=example.com&pbk=key&sid=id#ProxyName
+tuic://uuid:pass@server:443?sni=cdn.example.com&alpn=h3&congestion_control=bbr#TUICProxy
+hysteria2://pass@server:443/?insecure=1&sni=cdn.example.com#HY2Proxy
 ```
 
-Save to file:
-```bash
-proxy-config-updater url.txt -output config.yaml
-```
+## Supported Protocols
 
-Output raw (not pretty printed):
-```bash
-proxy-config-updater url.txt -pretty=false
-```
+| Protocol | URI Scheme |
+|----------|-----------|
+| VLESS | `vless://` |
+| VMess | `vmess://` |
+| Trojan | `trojan://` |
+| Shadowsocks | `ss://` |
+| TUIC | `tuic://` |
+| Hysteria2 | `hysteria2://` |
 
-## Default Configuration
+## Hardcoded Configuration
 
-When using pretty print mode (default), the tool merges subscription configuration with default values:
+The generated config includes:
 
-- Port: 7890
-- Socks Port: 7891
-- Redir Port: 7892
-- Allow LAN: true
-- Mode: rule
-- Log Level: info
-- Rule Providers: Four default rule providers are included:
-  - `direct`: Domain-based rules for direct connections
-  - `reject`: Domain-based rules for ad blocking
-  - `gfw`: Domain-based rules for GFW list
-  - `cncidr`: IP CIDR rules for Chinese IP ranges
-
-Fields present in the subscription configuration override these defaults. Rule providers from the subscription replace the default rule providers entirely (the default rule providers map is replaced if the subscription includes any `rule-providers` section).
+- **Ports**: 7890 (HTTP), 7891 (SOCKS), 7892 (redirect)
+- **DNS**: fake-ip mode with Chinese nameservers
+- **Proxy Groups**: 选择节点, 自动选择, Google谷歌应用, ChatGPT, PayPal, 海外游戏平台, Bilibili哔哩哔哩, 广告屏蔽, 主站加速
+- **Rules**: ~150 rules for routing (Google, Telegram, OpenAI, gaming, etc.)
+- **Rule Providers**: direct, reject, gfw, cncidr
 
 ## Dependencies
 
-- Go 1.16+
+- Go 1.25.6
 - gopkg.in/yaml.v3
 
 ## License

@@ -8,10 +8,7 @@ import (
 )
 
 // DecodeBase64 decodes a string that may be base64 encoded.
-// It handles UTF-8 BOM, data URL prefixes, whitespace, and tries
-// multiple base64 encodings (standard, raw, URL-safe).
 func DecodeBase64(encoded string) (string, error) {
-	// Remove UTF-8 BOM if present
 	data := []byte(encoded)
 	if bytes.HasPrefix(data, []byte{0xEF, 0xBB, 0xBF}) {
 		data = data[3:]
@@ -19,7 +16,6 @@ func DecodeBase64(encoded string) (string, error) {
 
 	s := string(data)
 
-	// Remove common data URL prefixes
 	for _, prefix := range []string{
 		"data:application/octet-stream;base64,",
 		"data:text/plain;base64,",
@@ -33,7 +29,6 @@ func DecodeBase64(encoded string) (string, error) {
 		}
 	}
 
-	// Remove all whitespace
 	cleaned := strings.Map(func(r rune) rune {
 		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
 			return -1
@@ -41,7 +36,6 @@ func DecodeBase64(encoded string) (string, error) {
 		return r
 	}, strings.TrimSpace(s))
 
-	// Try standard encodings
 	for _, enc := range []*base64.Encoding{
 		base64.StdEncoding,
 		base64.RawStdEncoding,

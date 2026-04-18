@@ -97,39 +97,55 @@ func TestBuildDefaultProxyGroups(t *testing.T) {
 	proxyNames := []string{"proxy-a", "proxy-b", "proxy-c"}
 	groups := BuildDefaultProxyGroups(proxyNames)
 
-	if len(groups) != 9 {
-		t.Fatalf("len(groups) = %d, want 9", len(groups))
+	if len(groups) != 4 {
+		t.Fatalf("len(groups) = %d, want 4", len(groups))
 	}
 
-	// Check "选择节点" group
-	if groups[0].Name != "选择节点" {
-		t.Errorf("groups[0].Name = %s, want 选择节点", groups[0].Name)
+	// Check "Proxy" group (url-test auto-select)
+	if groups[0].Name != "Proxy" {
+		t.Errorf("groups[0].Name = %s, want Proxy", groups[0].Name)
 	}
-	if groups[0].Type != "select" {
-		t.Errorf("groups[0].Type = %s, want select", groups[0].Type)
+	if groups[0].Type != "url-test" {
+		t.Errorf("groups[0].Type = %s, want url-test", groups[0].Type)
 	}
-	if groups[0].Proxies[0] != "自动选择" {
-		t.Errorf("groups[0].Proxies[0] = %s, want 自动选择", groups[0].Proxies[0])
+	if groups[0].URL != "https://www.gstatic.com/generate_204" {
+		t.Errorf("groups[0].URL = %s", groups[0].URL)
 	}
-	if len(groups[0].Proxies) != 4 { // "自动选择" + 3 proxies
-		t.Errorf("len(groups[0].Proxies) = %d, want 4", len(groups[0].Proxies))
+	if groups[0].Interval != 30 {
+		t.Errorf("groups[0].Interval = %d, want 30", groups[0].Interval)
+	}
+	if len(groups[0].Proxies) != 3 {
+		t.Errorf("len(groups[0].Proxies) = %d, want 3", len(groups[0].Proxies))
 	}
 
-	// Check "自动选择" group
-	if groups[1].Name != "自动选择" {
-		t.Errorf("groups[1].Name = %s, want 自动选择", groups[1].Name)
+	// Check "US-Only" group
+	if groups[1].Name != "US-Only" {
+		t.Errorf("groups[1].Name = %s, want US-Only", groups[1].Name)
 	}
-	if groups[1].Type != "url-test" {
-		t.Errorf("groups[1].Type = %s, want url-test", groups[1].Type)
+	if groups[1].Type != "select" {
+		t.Errorf("groups[1].Type = %s, want select", groups[1].Type)
 	}
-	if groups[1].URL != "https://www.gstatic.com/generate_204" {
-		t.Errorf("groups[1].URL = %s", groups[1].URL)
+	if groups[1].Proxies[0] != "Proxy" {
+		t.Errorf("groups[1].Proxies[0] = %s, want Proxy", groups[1].Proxies[0])
 	}
-	if groups[1].Interval != 30 {
-		t.Errorf("groups[1].Interval = %d, want 30", groups[1].Interval)
+
+	// Check "CN-Only" group
+	if groups[2].Name != "CN-Only" {
+		t.Errorf("groups[2].Name = %s, want CN-Only", groups[2].Name)
 	}
-	if len(groups[1].Proxies) != 3 {
-		t.Errorf("len(groups[1].Proxies) = %d, want 3", len(groups[1].Proxies))
+	if groups[2].Type != "select" {
+		t.Errorf("groups[2].Type = %s, want select", groups[2].Type)
+	}
+	if groups[2].Proxies[0] != "Proxy" {
+		t.Errorf("groups[2].Proxies[0] = %s, want Proxy", groups[2].Proxies[0])
+	}
+
+	// Check "Reject" group
+	if groups[3].Name != "Reject" {
+		t.Errorf("groups[3].Name = %s, want Reject", groups[3].Name)
+	}
+	if !reflect.DeepEqual(groups[3].Proxies, []string{"REJECT", "DIRECT"}) {
+		t.Errorf("groups[3].Proxies = %v", groups[3].Proxies)
 	}
 }
 
@@ -142,7 +158,7 @@ func TestBuildDefaultRules(t *testing.T) {
 	if rules[0] != "DOMAIN-KEYWORD,falun,REJECT" {
 		t.Errorf("first rule = %s", rules[0])
 	}
-	if rules[len(rules)-1] != "MATCH,选择节点" {
+	if rules[len(rules)-1] != "MATCH,Proxy" {
 		t.Errorf("last rule = %s", rules[len(rules)-1])
 	}
 }
@@ -161,8 +177,8 @@ func TestGenerateConfig(t *testing.T) {
 	if len(cfg.Proxies) != 2 {
 		t.Errorf("len(Proxies) = %d, want 2", len(cfg.Proxies))
 	}
-	if len(cfg.ProxyGroups) != 9 {
-		t.Errorf("len(ProxyGroups) = %d, want 9", len(cfg.ProxyGroups))
+	if len(cfg.ProxyGroups) != 4 {
+		t.Errorf("len(ProxyGroups) = %d, want 4", len(cfg.ProxyGroups))
 	}
 	if len(cfg.Rules) == 0 {
 		t.Error("Rules should not be empty")

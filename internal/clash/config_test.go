@@ -5,40 +5,6 @@ import (
 	"testing"
 )
 
-func TestDecodeBase64(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		want    string
-		wantErr bool
-	}{
-		{"valid base64", "SGVsbG8gV29ybGQ=", "Hello World", false},
-		{"base64 with newlines", "SGVsbG8g\nV29ybGQ=", "Hello World", false},
-		{"base64 with spaces", "SGVsbG8g V29ybGQ=", "Hello World", false},
-		{"base64 with tabs and newlines", "SGVsbG8g\tV29ybGQ=\n", "Hello World", false},
-		{"UTF-8 BOM prefix", "\xEF\xBB\xBFSGVsbG8gV29ybGQ=", "Hello World", false},
-		{"data URL prefix", "data:application/octet-stream;base64,SGVsbG8gV29ybGQ=", "Hello World", false},
-		{"base64, prefix", "base64,SGVsbG8gV29ybGQ=", "Hello World", false},
-		{"URL-safe encoding", "SGVsbG8gV29ybGQ", "Hello World", false},
-		{"invalid base64", "Not base64!", "", true},
-		{"empty string", "", "", false},
-		{"whitespace only", "   \n\t\r  ", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := DecodeBase64(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DecodeBase64() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("DecodeBase64() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestIsProxyURI(t *testing.T) {
 	tests := []struct {
 		line string
@@ -123,7 +89,6 @@ func TestBuildDefaultRules(t *testing.T) {
 	if len(rules) == 0 {
 		t.Error("BuildDefaultRules() returned empty rules")
 	}
-	// Check first and last rules
 	if rules[0] != "DOMAIN-KEYWORD,falun,REJECT" {
 		t.Errorf("first rule = %s", rules[0])
 	}
@@ -211,47 +176,7 @@ func TestParseTuicURI(t *testing.T) {
 	}
 }
 
-func TestIsURIList(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-		want    bool
-	}{
-		{
-			"mostly URIs",
-			"vless://a@b:1\nvless://c@d:2\nvless://e@f:3",
-			true,
-		},
-		{
-			"mixed with some non-URIs",
-			"vless://a@b:1\nvless://c@d:2\nnot a uri",
-			true,
-		},
-		{
-			"no URIs",
-			"hello\nworld\nfoo",
-			false,
-		},
-		{
-			"empty",
-			"",
-			false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := IsURIList(tt.content)
-			if got != tt.want {
-				t.Errorf("IsURIList() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMergeConfigsRemoved(t *testing.T) {
-	// The old MergeConfigs function used reflection and is now removed.
-	// GenerateConfig replaces it. Verify GenerateConfig produces correct output.
+func TestGenerateConfigFull(t *testing.T) {
 	proxies := []Proxy{
 		{Name: "p1", Type: "vless", Server: "s1", Port: 443},
 	}
@@ -261,7 +186,6 @@ func TestMergeConfigsRemoved(t *testing.T) {
 		t.Fatalf("GenerateConfig() error = %v", err)
 	}
 
-	// Verify it has all expected sections
 	if cfg.Port != 7890 {
 		t.Errorf("Port = %d", cfg.Port)
 	}

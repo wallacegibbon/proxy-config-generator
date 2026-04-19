@@ -1,9 +1,28 @@
 package clash
 
 import (
+	"encoding/base64"
 	"net/url"
 	"strconv"
+	"strings"
 )
+
+// base64DecodeCompat tries multiple base64 encodings to decode a string.
+// Used by vmess and ss URI parsers which embed base64 in the URI itself.
+func base64DecodeCompat(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	for _, enc := range []*base64.Encoding{
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+	} {
+		if decoded, err := enc.DecodeString(s); err == nil {
+			return string(decoded), nil
+		}
+	}
+	return "", base64.CorruptInputError(0)
+}
 
 // decodeFragment URL-decodes the fragment (after #) of a URI, which may be percent-encoded.
 func decodeFragment(fragment string) string {

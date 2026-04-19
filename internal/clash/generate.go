@@ -8,7 +8,6 @@ import (
 )
 
 // LoadDefaultConfig returns the hardcoded default mihomo configuration.
-// This includes ports, DNS settings, proxy-groups template, rules, and rule-providers.
 func LoadDefaultConfig() (*ClashConfig, error) {
 	return &ClashConfig{
 		Port:               7890,
@@ -89,111 +88,11 @@ func LoadDefaultConfig() (*ClashConfig, error) {
 }
 
 // BuildDefaultRules returns the hardcoded rules list.
-// Only AUTO, DIRECT, and REJECT are used as targets.
+// Most routing is handled by rule-providers (gfw, direct, reject, cncidr).
+// Here we only add what they don't cover: private IPs and fallback.
 func BuildDefaultRules() []string {
 	return []string{
-		// --- Reject ---
-		"DOMAIN-KEYWORD,falun,REJECT",
-		"DOMAIN-KEYWORD,minghui,REJECT",
-		"DOMAIN-SUFFIX,falunaz.net,REJECT",
-		"DOMAIN-SUFFIX,wujieliulan.com,REJECT",
-		"DOMAIN-SUFFIX,mhradio.org,REJECT",
-		"DOMAIN-SUFFIX,dongtaiwang.com,REJECT",
-		"DOMAIN-SUFFIX,epochtimes.com,REJECT",
-		"DOMAIN-SUFFIX,ntdtv.com,REJECT",
-
-		// --- Proxy ---
-		"DOMAIN-SUFFIX,openai.com,AUTO",
-		"DOMAIN-SUFFIX,chatgpt.com,AUTO",
-		"DOMAIN-SUFFIX,oaistatic.com,AUTO",
-		"DOMAIN-SUFFIX,oaiusercontent.com,AUTO",
-		"DOMAIN-SUFFIX,bing.com,AUTO",
-		"DOMAIN-SUFFIX,bingapis.com,AUTO",
-		"DOMAIN-SUFFIX,copilot.microsoft.com,AUTO",
-		"DOMAIN-SUFFIX,claude.ai,AUTO",
-		"DOMAIN-SUFFIX,anthropic.com,AUTO",
-		"DOMAIN-SUFFIX,perplexity.ai,AUTO",
-		"DOMAIN-SUFFIX,amazon.com,AUTO",
-		"DOMAIN-SUFFIX,amazonaws.com,AUTO",
-		"DOMAIN-SUFFIX,netflix.com,AUTO",
-		"DOMAIN-SUFFIX,nflximg.com,AUTO",
-		"DOMAIN-SUFFIX,nflximg.net,AUTO",
-		"DOMAIN-SUFFIX,nflxvideo.net,AUTO",
-		"DOMAIN-SUFFIX,nflxso.net,AUTO",
-		"DOMAIN-SUFFIX,nflxext.com,AUTO",
-		"DOMAIN-SUFFIX,github.com,AUTO",
-		"DOMAIN-SUFFIX,githubusercontent.com,AUTO",
-		"DOMAIN-SUFFIX,git.io,AUTO",
-		"DOMAIN-KEYWORD,mtalk.google.com,AUTO",
-		"DOMAIN-SUFFIX,xn--ngstr-lra8j.com,AUTO",
-		"DOMAIN-KEYWORD,google,AUTO",
-		"DOMAIN-KEYWORD,gmail,AUTO",
-		"DOMAIN-SUFFIX,youtube.com,AUTO",
-		"DOMAIN-SUFFIX,youtu.be,AUTO",
-		"DOMAIN-SUFFIX,gvt1.com,AUTO",
-		"DOMAIN-SUFFIX,gvt2.com,AUTO",
-		"DOMAIN-SUFFIX,chromium.org,AUTO",
-		"DOMAIN-SUFFIX,gstatic.com,AUTO",
-		"DOMAIN-KEYWORD,discord,AUTO",
-		"DOMAIN-KEYWORD,whatsapp,AUTO",
-		"DOMAIN-KEYWORD,linkedin,AUTO",
-		"DOMAIN-KEYWORD,facebook,AUTO",
-		"DOMAIN-KEYWORD,twitter,AUTO",
-		"DOMAIN-KEYWORD,instagram,AUTO",
-		"DOMAIN-KEYWORD,telegram,AUTO",
-		"DOMAIN-KEYWORD,blogspot,AUTO",
-		"DOMAIN-SUFFIX,fb.me,AUTO",
-		"DOMAIN-SUFFIX,fbcdn.net,AUTO",
-		"DOMAIN-SUFFIX,twimg.com,AUTO",
-		"DOMAIN-SUFFIX,t.me,AUTO",
-		"DOMAIN-SUFFIX,tdesktop.com,AUTO",
-		"DOMAIN-SUFFIX,telegra.ph,AUTO",
-		"DOMAIN-SUFFIX,telesco.pe,AUTO",
-		"DOMAIN-SUFFIX,dropbox.com,AUTO",
-		"DOMAIN-SUFFIX,okx.com,AUTO",
-		"DOMAIN-SUFFIX,binance.com,AUTO",
-		"DOMAIN-SUFFIX,nodeseek.com,AUTO",
-		"DOMAIN-SUFFIX,larksuite.com,AUTO",
-		"DOMAIN-KEYWORD,steam,AUTO",
-
-		// Telegram IPs
-		"IP-CIDR,91.105.192.0/23,AUTO,no-resolve",
-		"IP-CIDR,91.108.4.0/22,AUTO,no-resolve",
-		"IP-CIDR,91.108.8.0/21,AUTO,no-resolve",
-		"IP-CIDR,91.108.16.0/21,AUTO,no-resolve",
-		"IP-CIDR,91.108.56.0/22,AUTO,no-resolve",
-		"IP-CIDR,95.161.64.0/20,AUTO,no-resolve",
-		"IP-CIDR,149.154.160.0/20,AUTO,no-resolve",
-		"IP-CIDR6,185.76.151.0/24,AUTO,no-resolve",
-		"IP-CIDR6,2001:67c:4e8::/48,AUTO,no-resolve",
-		"IP-CIDR6,2001:b28:f23c::/47,AUTO,no-resolve",
-		"IP-CIDR6,2001:b28:f23f::/48,AUTO,no-resolve",
-		"IP-CIDR6,2a0a:f280::/32,AUTO,no-resolve",
-
-		// --- Direct ---
-		"DOMAIN-SUFFIX,services.googleapis.cn,DIRECT",
-		"DOMAIN-SUFFIX,cn.bing.com,DIRECT",
-		"DOMAIN-SUFFIX,azure.cn,DIRECT",
-		"DOMAIN-SUFFIX,microsoft.com,DIRECT",
-		"DOMAIN-SUFFIX,windows.net,DIRECT",
-		"DOMAIN-SUFFIX,windowsupdate.com,DIRECT",
-		"DOMAIN-SUFFIX,mzstatic.com,DIRECT",
-		"DOMAIN-SUFFIX,aaplimg.com,DIRECT",
-		"DOMAIN-SUFFIX,me.com,DIRECT",
-		"DOMAIN-KEYWORD,apple,DIRECT",
-		"DOMAIN-KEYWORD,icloud,DIRECT",
-		"DOMAIN-KEYWORD,mzstatic,DIRECT",
-		"DOMAIN-KEYWORD,adobe,DIRECT",
-		"DOMAIN-SUFFIX,steamserver.net,DIRECT",
-		"DOMAIN-SUFFIX,steamcdn-a.akamaihd.net,DIRECT",
-		"DOMAIN-SUFFIX,cm.steampowered.com,DIRECT",
-		"DOMAIN-SUFFIX,steam.clngaa.com,DIRECT",
-		"DOMAIN,cn.download.nvidia.com,DIRECT",
-		"DOMAIN-KEYWORD,gov.,DIRECT,no-resolve",
-		"DOMAIN-KEYWORD,.cn,DIRECT,no-resolve",
-		"DOMAIN,cdn.staticfile.net,DIRECT",
-
-		// --- Rule-sets ---
+		// --- Rule-sets (handle most routing) ---
 		"RULE-SET,reject,REJECT",
 		"RULE-SET,gfw,AUTO",
 		"RULE-SET,direct,DIRECT",
@@ -238,20 +137,17 @@ func BuildDefaultProxyGroups(proxyNames []string) []ProxyGroup {
 }
 
 // GenerateConfig generates a complete mihomo config from parsed proxies.
-// It applies all hardcoded defaults (ports, DNS, proxy-groups, rules, rule-providers).
 func GenerateConfig(proxies []Proxy) (*ClashConfig, error) {
 	defaultCfg, err := LoadDefaultConfig()
 	if err != nil {
 		return nil, fmt.Errorf("loading defaults: %w", err)
 	}
 
-	// Collect proxy names
 	proxyNames := make([]string, 0, len(proxies))
 	for _, p := range proxies {
 		proxyNames = append(proxyNames, p.Name)
 	}
 
-	// Build the full config
 	cfg := *defaultCfg
 	cfg.Proxies = proxies
 	cfg.ProxyGroups = BuildDefaultProxyGroups(proxyNames)

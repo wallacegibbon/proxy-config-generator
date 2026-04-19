@@ -89,7 +89,7 @@ func TestBuildDefaultRules(t *testing.T) {
 	if len(rules) == 0 {
 		t.Error("BuildDefaultRules() returned empty rules")
 	}
-	if rules[0] != "DOMAIN-KEYWORD,falun,REJECT" {
+	if rules[0] != "RULE-SET,reject,REJECT" {
 		t.Errorf("first rule = %s", rules[0])
 	}
 	if rules[len(rules)-1] != "MATCH,AUTO" {

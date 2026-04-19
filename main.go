@@ -10,12 +10,9 @@ import (
 )
 
 func main() {
-	var output string
-	positional := parseArgs(os.Args[1:], &output)
-
 	var allLines []string
 
-	if len(positional) == 0 {
+	if len(os.Args) <= 1 {
 		// Read from stdin
 		fmt.Fprintln(os.Stderr, "Reading proxy URIs from stdin...")
 		data, err := io.ReadAll(os.Stdin)
@@ -23,22 +20,19 @@ func main() {
 			fatal(fmt.Sprintf("Error reading stdin: %v", err))
 		}
 		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
+			if line = strings.TrimSpace(line); line != "" {
 				allLines = append(allLines, line)
 			}
 		}
 	} else {
-		// Read from files
-		for _, f := range positional {
+		for _, f := range os.Args[1:] {
 			data, err := os.ReadFile(f)
 			if err != nil {
 				fatal(fmt.Sprintf("Error reading %s: %v", f, err))
 			}
 			fmt.Fprintf(os.Stderr, "Reading: %s\n", f)
 			for _, line := range strings.Split(string(data), "\n") {
-				line = strings.TrimSpace(line)
-				if line != "" {
+				if line = strings.TrimSpace(line); line != "" {
 					allLines = append(allLines, line)
 				}
 			}
@@ -70,42 +64,10 @@ func main() {
 		fatal(fmt.Sprintf("Error generating config: %v", err))
 	}
 
-	// Write output
-	var writer io.Writer = os.Stdout
-	if output != "" {
-		file, err := os.Create(output)
-		if err != nil {
-			fatal(fmt.Sprintf("Error creating output file: %v", err))
-		}
-		defer file.Close()
-		writer = file
-		fmt.Fprintf(os.Stderr, "Writing: %s\n", output)
-	}
-
-	if err := clash.WriteConfig(cfg, writer); err != nil {
+	// Write to stdout
+	if err := clash.WriteConfig(cfg, os.Stdout); err != nil {
 		fatal(fmt.Sprintf("Error writing config: %v", err))
 	}
-
-	fmt.Fprintln(os.Stderr, "Done!")
-}
-
-func parseArgs(args []string, output *string) []string {
-	var positional []string
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "-output" || arg == "-o" {
-			if i+1 >= len(args) {
-				fatal("Error: -output requires a value")
-			}
-			*output = args[i+1]
-			i++
-		} else if len(arg) > 0 && arg[0] == '-' {
-			fatal(fmt.Sprintf("Unknown flag: %s", arg))
-		} else {
-			positional = append(positional, arg)
-		}
-	}
-	return positional
 }
 
 func fatal(msg string) {

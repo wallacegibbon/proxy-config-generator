@@ -4,8 +4,6 @@ package clash
 type ClashConfig struct {
 	Port               int                     `yaml:"port"`
 	SocksPort          int                     `yaml:"socks-port"`
-	RedirPort          int                     `yaml:"redir-port"`
-	MixedPort          int                     `yaml:"mixed-port"`
 	AllowLan           bool                    `yaml:"allow-lan"`
 	BindAddress        string                  `yaml:"bind-address"`
 	Mode               string                  `yaml:"mode"`

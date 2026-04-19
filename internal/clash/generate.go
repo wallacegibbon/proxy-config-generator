@@ -12,8 +12,6 @@ func LoadDefaultConfig() (*ClashConfig, error) {
 	return &ClashConfig{
 		Port:               7890,
 		SocksPort:          7891,
-		RedirPort:          7892,
-		MixedPort:          0,
 		AllowLan:           true,
 		BindAddress:        "*",
 		Mode:               "rule",

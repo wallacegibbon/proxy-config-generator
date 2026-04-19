@@ -101,8 +101,8 @@ func TestBuildDefaultProxyGroups(t *testing.T) {
 		t.Fatalf("len(groups) = %d, want 1", len(groups))
 	}
 
-	if groups[0].Name != "PROXY" {
-		t.Errorf("groups[0].Name = %s, want PROXY", groups[0].Name)
+	if groups[0].Name != "AUTO" {
+		t.Errorf("groups[0].Name = %s, want AUTO", groups[0].Name)
 	}
 	if groups[0].Type != "url-test" {
 		t.Errorf("groups[0].Type = %s, want url-test", groups[0].Type)
@@ -127,7 +127,7 @@ func TestBuildDefaultRules(t *testing.T) {
 	if rules[0] != "DOMAIN-KEYWORD,falun,REJECT" {
 		t.Errorf("first rule = %s", rules[0])
 	}
-	if rules[len(rules)-1] != "MATCH,PROXY" {
+	if rules[len(rules)-1] != "MATCH,AUTO" {
 		t.Errorf("last rule = %s", rules[len(rules)-1])
 	}
 }

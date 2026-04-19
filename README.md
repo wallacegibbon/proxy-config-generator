@@ -1,13 +1,8 @@
 # Proxy Config Updater
 
-A command line tool in Go that generates mihomo (Clash Meta) configuration files from subscription proxy lists.
+A command line tool that generates mihomo (Clash Meta) configuration from proxy URI lists.
 
-## How It Works
-
-1. Reads one or more input files, each containing a list of proxy URIs (one per line)
-2. Parses all supported proxy protocols (vless, vmess, trojan, ss, tuic, hysteria2)
-3. Generates a complete mihomo config with hardcoded defaults (ports, DNS, proxy-groups, rules, rule-providers)
-4. Outputs valid YAML ready for mihomo
+Reads proxy URIs from files or stdin, outputs a complete mihomo YAML config to stdout.
 
 ## Installation
 
@@ -18,29 +13,22 @@ go build -o proxy-config-updater .
 ## Usage
 
 ```bash
-proxy-config-updater [-output <path>] <url-file> [url-file2 ...]
+# From file
+./proxy-config-updater proxies.txt > config.yaml
+
+# From stdin
+./proxy-config-updater < proxies.txt > config.yaml
+
+# Merge multiple files
+cat a.txt b.txt | ./proxy-config-updater > config.yaml
+
+# Fetch and decode a subscription
+curl -s URL | base64 -d | ./proxy-config-updater > config.yaml
 ```
 
-### Input Files
+## Input Format
 
-Each input file contains one entry per line. Lines can be:
-- **Proxy URIs**: `vless://...`, `tuic://...`, `hysteria2://...`, `vmess://...`, `trojan://...`, `ss://...`
-- **Subscription URLs**: `https://...` — these are fetched and decoded (base64 or raw)
-
-### Examples
-
-```bash
-# Generate config from a single proxy list file
-proxy-config-updater ~/a.txt
-
-# Merge multiple subscription files into one config
-proxy-config-updater ~/a.txt ~/b.txt
-
-# Save to a file
-proxy-config-updater ~/a.txt -output config.yaml
-```
-
-### Sample Input File
+One proxy URI per line:
 
 ```
 vless://uuid@server:443?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&sni=example.com&pbk=key&sid=id#ProxyName
@@ -59,14 +47,14 @@ hysteria2://pass@server:443/?insecure=1&sni=cdn.example.com#HY2Proxy
 | TUIC | `tuic://` |
 | Hysteria2 | `hysteria2://` |
 
-## Hardcoded Configuration
+## Generated Config
 
-The generated config includes:
+The output is a complete mihomo config with hardcoded defaults:
 
 - **Ports**: 7890 (HTTP), 7891 (SOCKS), 7892 (redirect)
 - **DNS**: fake-ip mode with Chinese nameservers
-- **Proxy Groups**: 选择节点, 自动选择, Google谷歌应用, ChatGPT, PayPal, 海外游戏平台, Bilibili哔哩哔哩, 广告屏蔽, 主站加速
-- **Rules**: ~150 rules for routing (Google, Telegram, OpenAI, gaming, etc.)
+- **Group**: single `AUTO` group (url-test, auto-selects fastest node)
+- **Rules**: ~150 rules routing to AUTO, DIRECT, or REJECT
 - **Rule Providers**: direct, reject, gfw, cncidr
 
 ## Dependencies

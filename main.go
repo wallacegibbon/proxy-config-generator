@@ -8,9 +8,9 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -68,6 +68,12 @@ type RuleProvider struct {
 	Interval int    `yaml:"interval"`
 }
 
+// ---------- constants ----------
+
+// autoGroupName is the name of the url-test group that holds all proxies.
+const autoGroupName = "Auto"
+const proxyGroupName = "Proxy"
+
 // ---------- main ----------
 
 func main() {
@@ -81,18 +87,20 @@ func main() {
 		fatal(fmt.Sprintf("Error parsing config: %v", err))
 	}
 
-	defaultCfg, _ := LoadDefaultConfig()
+	defaultCfg := LoadDefaultConfig()
 	if defaultCfg == nil {
 		defaultCfg = &ClashConfig{}
 	}
 	merged := MergeConfigs(defaultCfg, cfg)
 
-	// Populate Auto group with all proxy names
-	for i, g := range merged.ProxyGroups {
-		if g.Name == "Auto" {
+	// Populate Auto group with real proxy names
+	for i := range merged.ProxyGroups {
+		if merged.ProxyGroups[i].Name == autoGroupName {
 			names := make([]string, 0, len(merged.Proxies))
 			for _, p := range merged.Proxies {
-				names = append(names, p.Name)
+				if isRealProxyName(p.Name) {
+					names = append(names, p.Name)
+				}
 			}
 			merged.ProxyGroups[i].Proxies = names
 			break
@@ -109,6 +117,29 @@ func main() {
 func fatal(msg string) {
 	fmt.Fprintln(os.Stderr, msg)
 	os.Exit(1)
+}
+
+// isRealProxyName returns false for subscription metadata lines masquerading as proxy names.
+func isRealProxyName(name string) bool {
+	if name == "" {
+		return false
+	}
+	// Common subscription metadata patterns (Chinese)
+	metadata := []string{"到期", "剩余", "流量", "时间", "套餐"}
+	for _, m := range metadata {
+		if strings.Contains(name, m) {
+			return false
+		}
+	}
+	// Name must contain at least one ASCII letter (real proxies have service names)
+	hasLetter := false
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			hasLetter = true
+			break
+		}
+	}
+	return hasLetter
 }
 
 // ---------- base64 ----------
@@ -141,7 +172,7 @@ func ParseContent(content string) (*ClashConfig, error) {
 }
 
 // LoadDefaultConfig returns the embedded default Clash configuration values.
-func LoadDefaultConfig() (*ClashConfig, error) {
+func LoadDefaultConfig() *ClashConfig {
 	return &ClashConfig{
 		Port:               7890,
 		SocksPort:          7891,
@@ -152,77 +183,143 @@ func LoadDefaultConfig() (*ClashConfig, error) {
 		LogLevel:           "info",
 		ExternalController: "127.0.0.1:9090",
 		ProxyGroups: []ProxyGroup{
-			{Name: "Proxy", Type: "select", Proxies: []string{"Auto"}},
-			{Name: "Auto", Type: "url-test", Proxies: nil, URL: "https://www.gstatic.com/generate_204", Interval: 3600},
+			{Name: proxyGroupName, Type: "select", Proxies: []string{autoGroupName}},
+			{Name: autoGroupName, Type: "url-test", Proxies: nil, URL: "https://www.gstatic.com/generate_204", Interval: 3600},
 		},
 		Rules: []string{
-			"DOMAIN-SUFFIX,google.com,Proxy",
-			"DOMAIN-SUFFIX,duckduckgo.com,Proxy",
-			"DOMAIN-SUFFIX,youtube.com,Proxy",
-			"DOMAIN-SUFFIX,twitter.com,Proxy",
-			"DOMAIN-SUFFIX,x.com,Proxy",
-			"DOMAIN-SUFFIX,facebook.com,Proxy",
-			"DOMAIN-SUFFIX,instagram.com,Proxy",
-			"DOMAIN-SUFFIX,telegram.org,Proxy",
+			"DOMAIN-SUFFIX,google.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,duckduckgo.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,youtube.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,twitter.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,x.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,facebook.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,instagram.com," + proxyGroupName,
+			"DOMAIN-SUFFIX,telegram.org," + proxyGroupName,
 			"RULE-SET,reject,REJECT",
 			"RULE-SET,direct,DIRECT",
-			"RULE-SET,gfw,Proxy",
+			"RULE-SET,gfw," + proxyGroupName,
 			"RULE-SET,cncidr,DIRECT",
 			"GEOIP,CN,DIRECT",
-			"MATCH,Proxy",
+			"MATCH," + proxyGroupName,
 		},
-		RuleProviders: map[string]RuleProvider{
-			"direct": {
-				Type:     "http",
-				Behavior: "domain",
-				Format:   "mrs",
-				URL:      "https://edgeone.gh-proxy.org/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset/cn-lite.mrs",
-				Path:     "./ruleset/direct.list",
-				Interval: 604800,
-			},
-			"reject": {
-				Type:     "http",
-				Behavior: "domain",
-				Format:   "mrs",
-				URL:      "https://edgeone.gh-proxy.org/raw.githubusercontent.com/privacy-protection-tools/anti-ad.github.io/master/docs/mihomo.mrs",
-				Path:     "./ruleset/aiti-ad.list",
-				Interval: 604800,
-			},
-			"gfw": {
-				Type:     "http",
-				Behavior: "domain",
-				URL:      "https://edgeone.gh-proxy.org/raw.githubusercontent.com/Loyalsoldier/clash-rules/release/gfw.txt",
-				Path:     "./ruleset/gfw.list",
-				Interval: 604800,
-			},
-			"cncidr": {
-				Type:     "http",
-				Behavior: "ipcidr",
-				Format:   "mrs",
-				URL:      "https://edgeone.gh-proxy.org/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset/cnip.mrs",
-				Path:     "./ruleset/cncidr.list",
-				Interval: 604800,
-			},
-		},
-	}, nil
+		RuleProviders: getDefaultRuleProviders(),
+	}
 }
 
-// MergeConfigs merges the subscription config into the default config.
+// getDefaultRuleProviders returns the embedded rule-provider definitions.
+func getDefaultRuleProviders() map[string]RuleProvider {
+	return map[string]RuleProvider{
+		"direct": {
+			Type:     "http",
+			Behavior: "domain",
+			Format:   "mrs",
+			URL:      "https://edgeone.gh-proxy.org/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset/cn-lite.mrs",
+			Path:     "./ruleset/direct.list",
+			Interval: int(time.Hour * 24 * 7 / time.Second),
+		},
+		"reject": {
+			Type:     "http",
+			Behavior: "domain",
+			Format:   "mrs",
+			URL:      "https://edgeone.gh-proxy.org/raw.githubusercontent.com/privacy-protection-tools/anti-ad.github.io/master/docs/mihomo.mrs",
+			Path:     "./ruleset/aiti-ad.list",
+			Interval: int(time.Hour * 24 * 7 / time.Second),
+		},
+		"gfw": {
+			Type:     "http",
+			Behavior: "domain",
+			URL:      "https://edgeone.gh-proxy.org/raw.githubusercontent.com/Loyalsoldier/clash-rules/release/gfw.txt",
+			Path:     "./ruleset/gfw.list",
+			Interval: int(time.Hour * 24 * 7 / time.Second),
+		},
+		"cncidr": {
+			Type:     "http",
+			Behavior: "ipcidr",
+			Format:   "mrs",
+			URL:      "https://edgeone.gh-proxy.org/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset/cnip.mrs",
+			Path:     "./ruleset/cncidr.list",
+			Interval: int(time.Hour * 24 * 7 / time.Second),
+		},
+	}
+}
+
+// MergeConfigs deep-copies the default config and overlays non-zero subscription fields.
 func MergeConfigs(defaultConfig, subscriptionConfig *ClashConfig) *ClashConfig {
-	merged := *defaultConfig
-
-	subVal := reflect.ValueOf(subscriptionConfig).Elem()
-	defVal := reflect.ValueOf(&merged).Elem()
-
-	for i := 0; i < subVal.NumField(); i++ {
-		subField := subVal.Field(i)
-		defField := defVal.Field(i)
-		if !subField.IsZero() {
-			defField.Set(subField)
+	// Deep copy all fields to avoid shared slice/map backing arrays
+	merged := &ClashConfig{
+		Port:               defaultConfig.Port,
+		SocksPort:          defaultConfig.SocksPort,
+		RedirPort:          defaultConfig.RedirPort,
+		AllowLan:           defaultConfig.AllowLan,
+		BindAddress:        defaultConfig.BindAddress,
+		Mode:               defaultConfig.Mode,
+		LogLevel:           defaultConfig.LogLevel,
+		ExternalController: defaultConfig.ExternalController,
+	}
+	if defaultConfig.Proxies != nil {
+		merged.Proxies = make([]Proxy, len(defaultConfig.Proxies))
+		copy(merged.Proxies, defaultConfig.Proxies)
+	}
+	if defaultConfig.ProxyGroups != nil {
+		merged.ProxyGroups = make([]ProxyGroup, len(defaultConfig.ProxyGroups))
+		copy(merged.ProxyGroups, defaultConfig.ProxyGroups)
+	}
+	if defaultConfig.Rules != nil {
+		merged.Rules = make([]string, len(defaultConfig.Rules))
+		copy(merged.Rules, defaultConfig.Rules)
+	}
+	if defaultConfig.RuleProviders != nil {
+		merged.RuleProviders = make(map[string]RuleProvider, len(defaultConfig.RuleProviders))
+		for k, v := range defaultConfig.RuleProviders {
+			merged.RuleProviders[k] = v
 		}
 	}
 
-	return &merged
+	// Override with non-zero subscription fields
+	if subscriptionConfig.Port != 0 {
+		merged.Port = subscriptionConfig.Port
+	}
+	if subscriptionConfig.SocksPort != 0 {
+		merged.SocksPort = subscriptionConfig.SocksPort
+	}
+	if subscriptionConfig.RedirPort != 0 {
+		merged.RedirPort = subscriptionConfig.RedirPort
+	}
+	if subscriptionConfig.AllowLan {
+		merged.AllowLan = true
+	}
+	if subscriptionConfig.BindAddress != "" {
+		merged.BindAddress = subscriptionConfig.BindAddress
+	}
+	if subscriptionConfig.Mode != "" {
+		merged.Mode = subscriptionConfig.Mode
+	}
+	if subscriptionConfig.LogLevel != "" {
+		merged.LogLevel = subscriptionConfig.LogLevel
+	}
+	if subscriptionConfig.ExternalController != "" {
+		merged.ExternalController = subscriptionConfig.ExternalController
+	}
+	if subscriptionConfig.Proxies != nil {
+		merged.Proxies = make([]Proxy, len(subscriptionConfig.Proxies))
+		copy(merged.Proxies, subscriptionConfig.Proxies)
+	}
+	if subscriptionConfig.ProxyGroups != nil {
+		merged.ProxyGroups = make([]ProxyGroup, len(subscriptionConfig.ProxyGroups))
+		copy(merged.ProxyGroups, subscriptionConfig.ProxyGroups)
+	}
+	if subscriptionConfig.Rules != nil {
+		merged.Rules = make([]string, len(subscriptionConfig.Rules))
+		copy(merged.Rules, subscriptionConfig.Rules)
+	}
+	if subscriptionConfig.RuleProviders != nil {
+		merged.RuleProviders = make(map[string]RuleProvider, len(subscriptionConfig.RuleProviders))
+		for k, v := range subscriptionConfig.RuleProviders {
+			merged.RuleProviders[k] = v
+		}
+	}
+
+	return merged
 }
 
 // ---------- URI detection & parsing ----------
@@ -258,7 +355,6 @@ func IsURIList(content string) bool {
 }
 
 // parseURIList parses a list of proxy URI lines into a ClashConfig.
-// After parsing, it populates the Auto group's proxy list with all names.
 func parseURIList(content string) (*ClashConfig, error) {
 	cfg := &ClashConfig{}
 	for _, line := range strings.Split(content, "\n") {
@@ -318,13 +414,11 @@ func parseVlessURI(uri string) (*Proxy, error) {
 		UDP:    true,
 	}
 
-	network := query.Get("type")
-	if network != "" {
+	if network := query.Get("type"); network != "" {
 		proxy.Network = network
 	}
 
-	security := query.Get("security")
-	if security == "reality" || security == "tls" {
+	if security := query.Get("security"); security == "reality" || security == "tls" {
 		proxy.TLS = true
 	}
 
@@ -337,6 +431,7 @@ func parseVlessURI(uri string) (*Proxy, error) {
 	if sni := query.Get("sni"); sni != "" {
 		proxy.Extra = setExtra(proxy.Extra, "servername", sni)
 	}
+
 	if pbk := query.Get("pbk"); pbk != "" || query.Get("sid") != "" {
 		realityOpts := map[string]any{}
 		if pbk != "" {
@@ -351,25 +446,8 @@ func parseVlessURI(uri string) (*Proxy, error) {
 		proxy.SkipCertVerify = true
 	}
 
-	if network == "ws" {
-		wsOpts := map[string]any{}
-		if wsPath := query.Get("path"); wsPath != "" {
-			wsOpts["path"] = wsPath
-		}
-		if host := query.Get("host"); host != "" {
-			wsOpts["headers"] = map[string]string{"Host": host}
-		}
-		if len(wsOpts) > 0 {
-			proxy.Extra = setExtra(proxy.Extra, "ws-opts", wsOpts)
-		}
-	}
-	if network == "grpc" {
-		if serviceName := query.Get("serviceName"); serviceName != "" {
-			proxy.Extra = setExtra(proxy.Extra, "grpc-opts", map[string]any{
-				"grpc-service-name": serviceName,
-			})
-		}
-	}
+	proxy.Extra = applyWSOpts(proxy.Extra, query.Get("path"), query.Get("host"))
+	proxy.Extra = applyGRPCOpts(proxy.Extra, query.Get("serviceName"))
 
 	return proxy, nil
 }
@@ -403,8 +481,7 @@ func parseVmessURI(uri string) (*Proxy, error) {
 		proxy.Extra = setExtra(proxy.Extra, "alterId", alterId)
 	}
 
-	network := stringFromMap(v, "net")
-	if network != "" {
+	if network := stringFromMap(v, "net"); network != "" {
 		proxy.Network = network
 	}
 	if stringFromMap(v, "tls") == "tls" {
@@ -414,25 +491,8 @@ func parseVmessURI(uri string) (*Proxy, error) {
 		proxy.Extra = setExtra(proxy.Extra, "servername", sni)
 	}
 
-	if network == "ws" {
-		wsOpts := map[string]any{}
-		if wsPath := stringFromMap(v, "path"); wsPath != "" {
-			wsOpts["path"] = wsPath
-		}
-		if host := stringFromMap(v, "host"); host != "" {
-			wsOpts["headers"] = map[string]string{"Host": host}
-		}
-		if len(wsOpts) > 0 {
-			proxy.Extra = setExtra(proxy.Extra, "ws-opts", wsOpts)
-		}
-	}
-	if network == "grpc" {
-		if serviceName := stringFromMap(v, "path"); serviceName != "" {
-			proxy.Extra = setExtra(proxy.Extra, "grpc-opts", map[string]any{
-				"grpc-service-name": serviceName,
-			})
-		}
-	}
+	proxy.Extra = applyWSOpts(proxy.Extra, stringFromMap(v, "path"), stringFromMap(v, "host"))
+	proxy.Extra = applyGRPCOpts(proxy.Extra, stringFromMap(v, "path"))
 
 	return proxy, nil
 }
@@ -616,6 +676,33 @@ func parseHysteria2URI(uri string) (*Proxy, error) {
 	}
 
 	return proxy, nil
+}
+
+// ---------- transport helpers ----------
+
+// applyWSOpts sets WebSocket transport options if path or host is provided.
+func applyWSOpts(extra map[string]any, path, host string) map[string]any {
+	if path == "" && host == "" {
+		return extra
+	}
+	wsOpts := map[string]any{}
+	if path != "" {
+		wsOpts["path"] = path
+	}
+	if host != "" {
+		wsOpts["headers"] = map[string]string{"Host": host}
+	}
+	return setExtra(extra, "ws-opts", wsOpts)
+}
+
+// applyGRPCOpts sets gRPC transport options if serviceName is provided.
+func applyGRPCOpts(extra map[string]any, serviceName string) map[string]any {
+	if serviceName == "" {
+		return extra
+	}
+	return setExtra(extra, "grpc-opts", map[string]any{
+		"grpc-service-name": serviceName,
+	})
 }
 
 // ---------- helpers ----------

@@ -114,9 +114,9 @@ func TestMergeConfigs(t *testing.T) {
 }
 
 func TestLoadDefaultConfig(t *testing.T) {
-	cfg, err := LoadDefaultConfig()
-	if err != nil {
-		t.Fatalf("LoadDefaultConfig() error = %v", err)
+	cfg := LoadDefaultConfig()
+	if cfg == nil {
+		t.Fatal("LoadDefaultConfig() returned nil")
 	}
 
 	want := &ClashConfig{

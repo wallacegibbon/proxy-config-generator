@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -185,5 +186,60 @@ func TestLoadDefaultConfig(t *testing.T) {
 
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("LoadDefaultConfig() = %+v\nwant %+v", cfg, want)
+	}
+}
+
+func TestParseAnyTLSURI(t *testing.T) {
+	uri := "anytls://11111111-1111-1111-1111-111111111111@203.0.113.1:12345/?insecure=1&sni=example.com#!Example%20Node%20A"
+	proxy, err := parseAnyTLSURI(uri)
+	if err != nil {
+		t.Fatalf("parseAnyTLSURI() error: %v", err)
+	}
+	want := &Proxy{
+		Name:           "!Example Node A",
+		Type:           "anytls",
+		Server:         "203.0.113.1",
+		Port:           12345,
+		Password:       "11111111-1111-1111-1111-111111111111",
+		UDP:            true,
+		SkipCertVerify: true,
+		Extra:          map[string]any{"sni": "example.com"},
+	}
+	if !reflect.DeepEqual(proxy, want) {
+		t.Errorf("parseAnyTLSURI() = %+v\nwant %+v", proxy, want)
+	}
+}
+
+func TestIsURIListWithAnyTLS(t *testing.T) {
+	content := "anytls://11111111-1111-1111-1111-111111111111@203.0.113.1:12345/?insecure=1&sni=example.com#!Example%20Node%20A"
+	if !IsURIList(content) {
+		t.Errorf("IsURIList() = false, want true for anytls URI")
+	}
+}
+
+func TestParseContentFiltersMetadataAndUnsupported(t *testing.T) {
+	content := strings.Join([]string{
+		"vless://11111111-1111-1111-1111-111111111111@192.0.2.1:23456?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&sni=example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=00000000#!剩余流量：53.18 GB",
+		"anytls://11111111-1111-1111-1111-111111111111@203.0.113.1:12345/?insecure=1&sni=example.com#!Example%20Node%20A",
+		"ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNToxMTExMTExMS0xMTExLTExMTEtMTExMS0xMTExMTExMTExMTE=@198.51.100.1:34567#!Example%20Node%20B",
+		"unknownscheme://foo@bar:1234#baz",
+		"vless://11111111-1111-1111-1111-111111111111@192.0.2.1:23456?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&sni=example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=00000000#!Example%20Node%20C",
+		"vless://11111111-1111-1111-1111-111111111111@192.0.2.1:23456?type=tcp&security=reality&flow=xtls-rprx-vision&fp=chrome&sni=example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=00000000#香港测试节点",
+	}, "\n")
+
+	cfg, err := ParseContent(content)
+	if err != nil {
+		t.Fatalf("ParseContent() error: %v", err)
+	}
+
+	var names []string
+	for _, p := range cfg.Proxies {
+		names = append(names, p.Name)
+	}
+	// metadata junk line and unsupported scheme line must be skipped;
+	// anytls + ss + vless nodes kept, including a Chinese-only-name node
+	want := []string{"!Example Node A", "!Example Node B", "!Example Node C", "香港测试节点"}
+	if !reflect.DeepEqual(names, want) {
+		t.Errorf("ParseContent() proxy names = %v\nwant %v", names, want)
 	}
 }

@@ -46,16 +46,21 @@ hysteria2://pass@server:443/?insecure=1&sni=cdn.example.com#HY2Proxy
 | Shadowsocks | `ss://` |
 | TUIC | `tuic://` |
 | Hysteria2 | `hysteria2://` |
+| AnyTLS | `anytls://` |
 
 ## Generated Config
 
 The output is a complete mihomo config with hardcoded defaults:
 
 - **Ports**: 7890 (HTTP), 7891 (SOCKS), 7892 (redirect)
-- **DNS**: fake-ip mode with Chinese nameservers
-- **Group**: single `AUTO` group (url-test, auto-selects fastest node)
-- **Rules**: ~150 rules routing to AUTO, DIRECT, or REJECT
+- **DNS**: no `dns:` section is emitted; mihomo falls back to the system resolver
+- **Groups**: `Proxy` (select) → `Auto` (url-test, auto-selects fastest node)
+- **Rules**: route to `Proxy`, `DIRECT`, or `REJECT`
 - **Rule Providers**: direct, reject, gfw, cncidr
+
+Unsupported proxy schemes, unparseable lines, and subscription metadata lines
+masquerading as proxies (e.g. names containing 到期/剩余/流量/时间/套餐) are
+skipped with a warning on stderr.
 
 ## Dependencies
 

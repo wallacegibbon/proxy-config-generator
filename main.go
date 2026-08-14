@@ -131,15 +131,7 @@ func isRealProxyName(name string) bool {
 			return false
 		}
 	}
-	// Name must contain at least one ASCII letter (real proxies have service names)
-	hasLetter := false
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
-			hasLetter = true
-			break
-		}
-	}
-	return hasLetter
+	return true
 }
 
 // ---------- base64 ----------
@@ -332,6 +324,7 @@ var proxySchemes = []string{
 	"tuic://",
 	"hysteria2://",
 	"hysteria://",
+	"anytls://",
 }
 
 // IsURIList returns true if more than half of non-empty lines are proxy URIs.
@@ -365,11 +358,18 @@ func parseURIList(content string) (*ClashConfig, error) {
 
 		proxy, err := parseProxyURI(line)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: skipping line (%v): %s\n", err, line)
 			continue
 		}
-		if proxy != nil {
-			cfg.Proxies = append(cfg.Proxies, *proxy)
+		if proxy == nil {
+			fmt.Fprintf(os.Stderr, "warning: skipping unsupported proxy scheme: %s\n", line)
+			continue
 		}
+		if !isRealProxyName(proxy.Name) {
+			fmt.Fprintf(os.Stderr, "warning: skipping subscription metadata line (not a proxy): %s\n", line)
+			continue
+		}
+		cfg.Proxies = append(cfg.Proxies, *proxy)
 	}
 	return cfg, nil
 }
@@ -389,6 +389,8 @@ func parseProxyURI(line string) (*Proxy, error) {
 		return parseTuicURI(line)
 	case strings.HasPrefix(line, "hysteria2://") || strings.HasPrefix(line, "hysteria://"):
 		return parseHysteria2URI(line)
+	case strings.HasPrefix(line, "anytls://"):
+		return parseAnyTLSURI(line)
 	default:
 		return nil, nil
 	}
@@ -673,6 +675,39 @@ func parseHysteria2URI(uri string) (*Proxy, error) {
 	}
 	if mport := query.Get("mport"); mport != "" {
 		proxy.Extra = setExtra(proxy.Extra, "mport", mport)
+	}
+
+	return proxy, nil
+}
+
+// ---------- anytls ----------
+
+func parseAnyTLSURI(uri string) (*Proxy, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("parsing anytls URI: %w", err)
+	}
+
+	port, _ := strconv.Atoi(u.Port())
+	query := u.Query()
+
+	proxy := &Proxy{
+		Name:     decodeFragment(u.Fragment),
+		Type:     "anytls",
+		Server:   u.Hostname(),
+		Port:     port,
+		Password: u.User.Username(),
+		UDP:      true,
+	}
+
+	if sni := query.Get("sni"); sni != "" {
+		proxy.Extra = setExtra(proxy.Extra, "sni", sni)
+	}
+	if query.Get("insecure") == "1" {
+		proxy.SkipCertVerify = true
+	}
+	if alpn := query.Get("alpn"); alpn != "" {
+		proxy.Extra = setExtra(proxy.Extra, "alpn", []string{alpn})
 	}
 
 	return proxy, nil

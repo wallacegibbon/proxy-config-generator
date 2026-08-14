@@ -27,10 +27,22 @@ type ClashConfig struct {
 	Mode               string                  `yaml:"mode"`
 	LogLevel           string                  `yaml:"log-level"`
 	ExternalController string                  `yaml:"external-controller"`
+	DNS                *DNSConfig              `yaml:"dns,omitempty"`
 	Proxies            []Proxy                 `yaml:"proxies"`
 	ProxyGroups        []ProxyGroup            `yaml:"proxy-groups"`
 	Rules              []string                `yaml:"rules"`
 	RuleProviders      map[string]RuleProvider `yaml:"rule-providers,omitempty"`
+}
+
+// DNSConfig represents the dns section of a mihomo configuration.
+type DNSConfig struct {
+	Enable                bool                `yaml:"enable"`
+	IPv6                  bool                `yaml:"ipv6"`
+	EnhancedMode          string              `yaml:"enhanced-mode"`
+	FakeIPRange           string              `yaml:"fake-ip-range"`
+	Nameserver            []string            `yaml:"nameserver"`
+	ProxyServerNameserver []string            `yaml:"proxy-server-nameserver"`
+	NameserverPolicy      map[string][]string `yaml:"nameserver-policy,omitempty"`
 }
 
 // Proxy represents an individual proxy server configuration.
@@ -174,6 +186,14 @@ func LoadDefaultConfig() *ClashConfig {
 		Mode:               "rule",
 		LogLevel:           "info",
 		ExternalController: "127.0.0.1:9090",
+		DNS: &DNSConfig{
+			Enable:                true,
+			IPv6:                  false,
+			EnhancedMode:          "fake-ip",
+			FakeIPRange:           "198.18.0.1/16",
+			Nameserver:            []string{"223.5.5.5", "119.29.29.29"},
+			ProxyServerNameserver: []string{"223.5.5.5", "119.29.29.29"},
+		},
 		ProxyGroups: []ProxyGroup{
 			{Name: proxyGroupName, Type: "select", Proxies: []string{autoGroupName}},
 			{Name: autoGroupName, Type: "url-test", Proxies: nil, URL: "https://www.gstatic.com/generate_204", Interval: 3600},
@@ -248,6 +268,9 @@ func MergeConfigs(defaultConfig, subscriptionConfig *ClashConfig) *ClashConfig {
 		LogLevel:           defaultConfig.LogLevel,
 		ExternalController: defaultConfig.ExternalController,
 	}
+	if defaultConfig.DNS != nil {
+		merged.DNS = cloneDNS(defaultConfig.DNS)
+	}
 	if defaultConfig.Proxies != nil {
 		merged.Proxies = make([]Proxy, len(defaultConfig.Proxies))
 		copy(merged.Proxies, defaultConfig.Proxies)
@@ -310,8 +333,25 @@ func MergeConfigs(defaultConfig, subscriptionConfig *ClashConfig) *ClashConfig {
 			merged.RuleProviders[k] = v
 		}
 	}
+	if subscriptionConfig.DNS != nil {
+		merged.DNS = cloneDNS(subscriptionConfig.DNS)
+	}
 
 	return merged
+}
+
+// cloneDNS deep-copies a DNSConfig to avoid sharing slice/map backing arrays.
+func cloneDNS(d *DNSConfig) *DNSConfig {
+	c := *d
+	c.Nameserver = append([]string(nil), d.Nameserver...)
+	c.ProxyServerNameserver = append([]string(nil), d.ProxyServerNameserver...)
+	if d.NameserverPolicy != nil {
+		c.NameserverPolicy = make(map[string][]string, len(d.NameserverPolicy))
+		for k, v := range d.NameserverPolicy {
+			c.NameserverPolicy[k] = append([]string(nil), v...)
+		}
+	}
+	return &c
 }
 
 // ---------- URI detection & parsing ----------

@@ -53,7 +53,7 @@ hysteria2://pass@server:443/?insecure=1&sni=cdn.example.com#HY2Proxy
 The output is a complete mihomo config with hardcoded defaults:
 
 - **Ports**: 7890 (HTTP), 7891 (SOCKS), 7892 (redirect)
-- **DNS**: no `dns:` section is emitted; mihomo falls back to the system resolver
+- **DNS**: fake-ip mode (`198.18.0.1/16`) with Chinese nameservers (223.5.5.5, 119.29.29.29)
 - **Groups**: `Proxy` (select) → `Auto` (url-test, auto-selects fastest node)
 - **Rules**: route to `Proxy`, `DIRECT`, or `REJECT`
 - **Rule Providers**: direct, reject, gfw, cncidr

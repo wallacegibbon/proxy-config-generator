@@ -114,6 +114,43 @@ func TestMergeConfigs(t *testing.T) {
 	}
 }
 
+func TestMergeConfigsPreservesDefaultDNS(t *testing.T) {
+	def := LoadDefaultConfig()
+	def.DNS.NameserverPolicy = map[string][]string{
+		"geosite:cn": {"223.5.5.5", "119.29.29.29"},
+	}
+	got := MergeConfigs(def, &ClashConfig{})
+	if !reflect.DeepEqual(got.DNS, def.DNS) {
+		t.Fatalf("MergeConfigs() DNS = %+v\nwant %+v", got.DNS, def.DNS)
+	}
+	// Mutating the merged DNS must not affect the default config (deep copy).
+	got.DNS.Nameserver[0] = "1.1.1.1"
+	got.DNS.NameserverPolicy["geosite:cn"][0] = "1.1.1.1"
+	if def.DNS.Nameserver[0] != "223.5.5.5" {
+		t.Errorf("default DNS nameserver mutated: %v", def.DNS.Nameserver)
+	}
+	if def.DNS.NameserverPolicy["geosite:cn"][0] != "223.5.5.5" {
+		t.Errorf("default DNS policy mutated: %v", def.DNS.NameserverPolicy)
+	}
+}
+
+func TestMergeConfigsDNSOverride(t *testing.T) {
+	def := LoadDefaultConfig()
+	sub := &ClashConfig{DNS: &DNSConfig{
+		Enable:       false,
+		EnhancedMode: "redir-host",
+		Nameserver:   []string{"114.114.114.114"},
+	}}
+	got := MergeConfigs(def, sub)
+	if got.DNS.Enable || got.DNS.EnhancedMode != "redir-host" || !reflect.DeepEqual(got.DNS.Nameserver, []string{"114.114.114.114"}) {
+		t.Errorf("MergeConfigs() DNS override = %+v", got.DNS)
+	}
+	// The default config must not be mutated by the override.
+	if def.DNS.EnhancedMode != "fake-ip" {
+		t.Errorf("default DNS mutated by subscription override: %+v", def.DNS)
+	}
+}
+
 func TestLoadDefaultConfig(t *testing.T) {
 	cfg := LoadDefaultConfig()
 	if cfg == nil {
@@ -129,6 +166,14 @@ func TestLoadDefaultConfig(t *testing.T) {
 		Mode:               "rule",
 		LogLevel:           "info",
 		ExternalController: "127.0.0.1:9090",
+		DNS: &DNSConfig{
+			Enable:                true,
+			IPv6:                  false,
+			EnhancedMode:          "fake-ip",
+			FakeIPRange:           "198.18.0.1/16",
+			Nameserver:            []string{"223.5.5.5", "119.29.29.29"},
+			ProxyServerNameserver: []string{"223.5.5.5", "119.29.29.29"},
+		},
 		ProxyGroups: []ProxyGroup{
 			{Name: "Proxy", Type: "select", Proxies: []string{"Auto"}},
 			{Name: "Auto", Type: "url-test", Proxies: nil, URL: "https://www.gstatic.com/generate_204", Interval: 3600},

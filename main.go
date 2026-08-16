@@ -19,9 +19,7 @@ import (
 
 // ClashConfig represents a top-level Clash/mihomo configuration.
 type ClashConfig struct {
-	Port               int                     `yaml:"port"`
-	SocksPort          int                     `yaml:"socks-port"`
-	RedirPort          int                     `yaml:"redir-port"`
+	MixedPort          int                     `yaml:"mixed-port"`
 	AllowLan           bool                    `yaml:"allow-lan"`
 	BindAddress        string                  `yaml:"bind-address"`
 	Mode               string                  `yaml:"mode"`
@@ -178,9 +176,7 @@ func ParseContent(content string) (*ClashConfig, error) {
 // LoadDefaultConfig returns the embedded default Clash configuration values.
 func LoadDefaultConfig() *ClashConfig {
 	return &ClashConfig{
-		Port:               7890,
-		SocksPort:          7891,
-		RedirPort:          7892,
+		MixedPort:          7890,
 		AllowLan:           true,
 		BindAddress:        "*",
 		Mode:               "rule",
@@ -259,9 +255,7 @@ func getDefaultRuleProviders() map[string]RuleProvider {
 func MergeConfigs(defaultConfig, subscriptionConfig *ClashConfig) *ClashConfig {
 	// Deep copy all fields to avoid shared slice/map backing arrays
 	merged := &ClashConfig{
-		Port:               defaultConfig.Port,
-		SocksPort:          defaultConfig.SocksPort,
-		RedirPort:          defaultConfig.RedirPort,
+		MixedPort:          defaultConfig.MixedPort,
 		AllowLan:           defaultConfig.AllowLan,
 		BindAddress:        defaultConfig.BindAddress,
 		Mode:               defaultConfig.Mode,
@@ -291,14 +285,8 @@ func MergeConfigs(defaultConfig, subscriptionConfig *ClashConfig) *ClashConfig {
 	}
 
 	// Override with non-zero subscription fields
-	if subscriptionConfig.Port != 0 {
-		merged.Port = subscriptionConfig.Port
-	}
-	if subscriptionConfig.SocksPort != 0 {
-		merged.SocksPort = subscriptionConfig.SocksPort
-	}
-	if subscriptionConfig.RedirPort != 0 {
-		merged.RedirPort = subscriptionConfig.RedirPort
+	if subscriptionConfig.MixedPort != 0 {
+		merged.MixedPort = subscriptionConfig.MixedPort
 	}
 	if subscriptionConfig.AllowLan {
 		merged.AllowLan = true

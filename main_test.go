@@ -16,18 +16,16 @@ func TestMergeConfigs(t *testing.T) {
 		{
 			name: "subscription overrides non-zero fields",
 			defaultConfig: &ClashConfig{
-				Port:      7890,
-				SocksPort: 7891,
+				MixedPort: 7890,
 				AllowLan:  true,
 				Mode:      "rule",
 			},
 			subscription: &ClashConfig{
-				Port: 9999,
-				Mode: "global",
+				MixedPort: 9999,
+				Mode:      "global",
 			},
 			want: &ClashConfig{
-				Port:      9999,
-				SocksPort: 7891,
+				MixedPort: 9999,
 				AllowLan:  true,
 				Mode:      "global",
 			},
@@ -35,38 +33,35 @@ func TestMergeConfigs(t *testing.T) {
 		{
 			name: "subscription zero fields do not override",
 			defaultConfig: &ClashConfig{
-				Port:      7890,
-				SocksPort: 7891,
+				MixedPort: 7890,
 			},
 			subscription: &ClashConfig{
-				Port: 0,
 				Mode: "rule",
 			},
 			want: &ClashConfig{
-				Port:      7890,
-				SocksPort: 7891,
+				MixedPort: 7890,
 				Mode:      "rule",
 			},
 		},
 		{
 			name: "empty slice overrides nil slice",
 			defaultConfig: &ClashConfig{
-				Port:    7890,
-				Proxies: nil,
+				MixedPort: 7890,
+				Proxies:   nil,
 			},
 			subscription: &ClashConfig{
-				Port:    7890,
-				Proxies: []Proxy{},
+				MixedPort: 7890,
+				Proxies:   []Proxy{},
 			},
 			want: &ClashConfig{
-				Port:    7890,
-				Proxies: []Proxy{},
+				MixedPort: 7890,
+				Proxies:   []Proxy{},
 			},
 		},
 		{
 			name: "rule-providers map overrides",
 			defaultConfig: &ClashConfig{
-				Port: 7890,
+				MixedPort: 7890,
 				RuleProviders: map[string]RuleProvider{
 					"direct": {
 						Type:     "http",
@@ -78,7 +73,7 @@ func TestMergeConfigs(t *testing.T) {
 				},
 			},
 			subscription: &ClashConfig{
-				Port: 9999,
+				MixedPort: 9999,
 				RuleProviders: map[string]RuleProvider{
 					"reject": {
 						Type:     "http",
@@ -90,7 +85,7 @@ func TestMergeConfigs(t *testing.T) {
 				},
 			},
 			want: &ClashConfig{
-				Port: 9999,
+				MixedPort: 9999,
 				RuleProviders: map[string]RuleProvider{
 					"reject": {
 						Type:     "http",
@@ -158,9 +153,7 @@ func TestLoadDefaultConfig(t *testing.T) {
 	}
 
 	want := &ClashConfig{
-		Port:               7890,
-		SocksPort:          7891,
-		RedirPort:          7892,
+		MixedPort:          7890,
 		AllowLan:           true,
 		BindAddress:        "*",
 		Mode:               "rule",

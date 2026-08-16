@@ -4,6 +4,20 @@ A command line tool that generates mihomo (Clash Meta) configuration from proxy 
 
 Reads proxy URIs from files or stdin, outputs a complete mihomo YAML config to stdout.
 
+> [!WARNING]
+> **This project is mostly useless.** Many subscription providers inspect the
+> User Agent and directly return the corresponding mihomo/Clash config, so
+> there's usually no need to parse proxy URIs and generate a config yourself.
+> Just fetch the subscription with curl using a Clash Meta User Agent:
+>
+> ```bash
+> curl -sL -A "ClashMetaForAndroid/2.11.1" https://blah.com/a/b/c/subscription > ~/mihomo-config/config.yaml
+> ```
+>
+> This tool is only useful when a provider does not support returning a mihomo
+> config based on the User Agent (e.g. it only returns a base64-encoded list of
+> proxy URIs).
+
 ## Installation
 
 ```bash
